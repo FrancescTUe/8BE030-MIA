@@ -45,7 +45,11 @@ def t2h(T, t):
 
     #------------------------------------------------------------------#
     # TODO: Implement conversion of a transformation matrix and a translation vector to homogeneous transformation matrix.
-	pass
+	t = np.array(t).reshape(2, 1)
+	Th_top = np.column_stack((T, t))
+	Th = np.vstack((Th_top, [0, 0, 1]))
+
+	return Th
     #------------------------------------------------------------------#
 
 def plot_object(ax, X):
