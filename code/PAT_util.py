@@ -123,27 +123,38 @@ def color_overlay(fixed_im, moving_im):
 
 def params_to_Th(x):
     """
-    Convert parameter vector x = [angle, tx_scaled, ty_scaled] to a
-    3x3 homogeneous rigid transformation matrix Th.
+    Convert parameter vector x = [angle, scale_x, scale_y, shear_x, shear_y, translation_x, translation_y] to a
+    homogeneous affine transformation matrix Th.
     """
-    SCALING = 100
+    phi = x[0] # Rotation angle
+    sx, sy = x[1], x[2] # Scaling factors
+    shx, shy = x[3], x[4]# Shearing factors
+    tx, ty = x[5], x[6] # Translation factors
 
-    T  = reg.rotate(x[0])
-    Th = util.t2h(T, x[1:] * SCALING)
+    # We generate each component and compose the linear transformation matrix
+    R = reg.rotate(phi)
+    Sh = reg.shear(shx, shy)
+    S = np.array([[sx, 0], [0, sy]])
+    
+    A = Sh@S@R
+
+    # We then create the homoeneous function
+    Th = util.t2h(A, np.array([[tx], [ty]]))
     return Th
 
 def gradient_ascent_registration(I, J, x_init, similarity_fn,
-                                   n_iterations=500, learning_rate=1e-3):
+                                   n_iterations=50, learning_rate=1e-3, tol=1e-4):
     """
     Intensity-based registration via gradient ascent on similarity_fn.
 
     Parameters
     ----------
     I, J          : fixed and moving images 
-    x_init        : initial parameter vector [angle, tx_scaled, ty_scaled]
+    x_init        : initial parameter vector [rot angle, sx, sy, shx, shy, tx, ty]
     similarity_fn : similarity function
     n_iterations  : number of gradient ascent steps
     learning_rate : step size
+    tol           : convergence tolerance for similarity change
 
     Returns
     -------
@@ -153,17 +164,29 @@ def gradient_ascent_registration(I, J, x_init, similarity_fn,
     x = x_init.copy().astype(np.float64)
     history = []
 
-    sim_initial = similarity_fn(x)
-    print(f'  Initial similarity : {sim_initial:.4f}')
-    print(f'  Initial parameters : angle={np.degrees(x[0]):.2f} deg, '
-          f'tx={x[1]:.4f}, ty={x[2]:.4f}')
+    current_sim = similarity_fn(x)
+    history.append(current_sim)
 
-    for _ in range(n_iterations):
-        g = reg.ngradient(similarity_fn, x)
-        x = x + learning_rate * g
-        history.append(similarity_fn(x))
+    print(f'  Initial similarity : {current_sim:.4f}')
+    print(f'  Initial parameters : angle={np.degrees(x[0]):.2f} deg, '
+          f'sx={x[1]:.4f}, sy={x[2]:.4f}, shx={x[3]:.4f}, shy={x[4]:.4f}, tx={x[5]:.4f}, ty={x[6]:.4f}')
+
+    for i in range(n_iterations):
+         g = reg.ngradient(similarity_fn, x)
+         step = learning_rate * g
+         x = x + step
+
+         new_sim = similarity_fn(x)
+         history.append(new_sim)
+       
+         sim_change = abs(new_sim - current_sim)
+         if sim_change < tol:
+            print(f' Converged at iteration {i+1}')
+            break
+        
+         current_sim = new_sim
 
     print(f'  Final similarity   : {history[-1]:.4f}')
     print(f'  Final parameters   : angle={np.degrees(x[0]):.2f} deg, '
-          f'tx={x[1]:.4f}, ty={x[2]:.4f}')
-    return x, history  
+          f'sx={x[1]:.4f}, sy={x[2]:.4f}, shx={x[3]:.4f}, shy={x[4]:.4f}, tx={x[5]:.4f}, ty={x[6]:.4f}')
+    return x, history
