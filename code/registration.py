@@ -6,7 +6,6 @@ import numpy as np
 from scipy import ndimage
 import registration_util as util
 
-
 # SECTION 1. Geometrical transformations
 
 
@@ -518,3 +517,73 @@ def affine_mi(I, Im, x, return_transform=True):
         return MI, Im_t, Th
     else:
         return MI
+    
+def gradient_ascent_registration(I, J, x_init, similarity_fn,
+                                   n_iterations=50, learning_rate=1e-3, tol=1e-4):
+    """
+    Intensity-based registration via gradient ascent on similarity_fn.
+
+    Parameters
+    ----------
+    I, J          : fixed and moving images 
+    x_init        : initial parameter vector [rot angle, sx, sy, shx, shy, tx, ty]
+    similarity_fn : similarity function
+    n_iterations  : number of gradient ascent steps
+    learning_rate : step size
+    tol           : convergence tolerance for similarity change
+
+    Returns
+    -------
+    x_opt   : final parameter vector
+    history : list of similarity scores, one per iteration
+    """
+    x = x_init.copy().astype(np.float64)
+    history = []
+
+    current_sim = similarity_fn(x)
+    history.append(current_sim)
+
+    print(f'  Initial similarity : {current_sim:.4f}')
+    print(f'  Initial parameters : angle={np.degrees(x[0]):.2f} deg, '
+          f'sx={x[1]:.4f}, sy={x[2]:.4f}, shx={x[3]:.4f}, shy={x[4]:.4f}, tx={x[5]:.4f}, ty={x[6]:.4f}')
+
+    for i in range(n_iterations):
+         g = ngradient(similarity_fn, x)
+         step = learning_rate * g
+         x = x + step
+
+         new_sim = similarity_fn(x)
+         history.append(new_sim)
+       
+         sim_change = abs(new_sim - current_sim)
+         if sim_change < tol:
+            print(f' Converged at iteration {i+1}')
+            break
+        
+         current_sim = new_sim
+
+    print(f'  Final similarity   : {history[-1]:.4f}')
+    print(f'  Final parameters   : angle={np.degrees(x[0]):.2f} deg, '
+          f'sx={x[1]:.4f}, sy={x[2]:.4f}, shx={x[3]:.4f}, shy={x[4]:.4f}, tx={x[5]:.4f}, ty={x[6]:.4f}')
+    return x, history
+
+def params_to_Th(x):
+    """
+    Convert parameter vector x = [angle, scale_x, scale_y, shear_x, shear_y, translation_x, translation_y] to a
+    homogeneous affine transformation matrix Th.
+    """
+    phi = x[0] # Rotation angle
+    sx, sy = x[1], x[2] # Scaling factors
+    shx, shy = x[3], x[4]# Shearing factors
+    tx, ty = x[5], x[6] # Translation factors
+
+    # We generate each component and compose the linear transformation matrix
+    R = rotate(phi)
+    Sh = shear(shx, shy)
+    S = np.array([[sx, 0], [0, sy]])
+    
+    A = Sh@S@R
+
+    # We then create the homoeneous function
+    Th = util.t2h(A, np.array([[tx], [ty]]))
+    return Th
