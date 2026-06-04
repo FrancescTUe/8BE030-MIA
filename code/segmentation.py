@@ -5,7 +5,7 @@ Segmentation module main code.
 import numpy as np
 import scipy
 from sklearn.neighbors import KNeighborsClassifier
-
+import segmentation_util as util
 
 # SECTION 1. Segmentation in feature space
 
@@ -65,7 +65,7 @@ def extract_coordinate_feature(im):
     #------------------------------------------------------------------#
     # TODO: Use the above variables to create an image coord_im
     # that combines the information from x_coord and y_coord 
-
+    coord_im = np.sqrt((x_coord-x_center)**2 + (y_coord-y_center)**2)
     #------------------------------------------------------------------#
     
     # Create a feature from the coordinate image
@@ -121,9 +121,16 @@ def cost_kmeans(X, w_vector):
     W = w_vector.reshape(K, m)
 
     #------------------------------------------------------------------#
-    # TODO: Find distance of each point to each cluster center
+    # TODO: 
+    # Find distance of each point to each cluster center
+    D = scipy.spatial.distance.cdist(X, W, metric='euclidean')
+
     # Then find the minimum distances min_dist and indices min_index
+    min_dist = np.min(D, axis=1)
+    min_index = np.argmin(D, axis=1)
+
     # Then calculate the cost
+    J = np.sum(min_dist**2)
 
     #------------------------------------------------------------------#
 
@@ -151,7 +158,10 @@ def kmeans_clustering(test_data, K=2):
 
     #------------------------------------------------------------------#
     # TODO: Initialize cluster centers and store them in w_initial
-
+    # we will pick K random points from our dataset
+    N, M = test_data.shape
+    random_indices = np.random.choice(N, size=K, replace=False)
+    w_initial = test_data[random_indices, :]
     #------------------------------------------------------------------#
 
     #Reshape centers to a vector (needed by ngradient)
@@ -159,7 +169,7 @@ def kmeans_clustering(test_data, K=2):
 
     for i in np.arange(num_iter):
         # gradient ascent
-        w_vector = w_vector - mu*reg.ngradient(fun,w_vector)
+        w_vector = w_vector - mu*util.ngradient(fun,w_vector)
 
     #Reshape back to dataset
     w_final = w_vector.reshape(K, M)
@@ -167,6 +177,10 @@ def kmeans_clustering(test_data, K=2):
     #------------------------------------------------------------------#
     # TODO: Find distance of each point to each cluster center
     # Then find the minimum distances min_dist and indices min_index
+
+    D = scipy.spatial.distance.cdist(test_data, w_final, metric='euclidean')
+    min_dist = np.min(D, axis=1)
+    min_index = np.argmin(D, axis=1)
 
     #------------------------------------------------------------------#
 
@@ -197,6 +211,11 @@ def nn_classifier(train_data, train_labels, test_data):
 
     #------------------------------------------------------------------#
     # TODO: Implement missing functionality
+    D = scipy.spatial.distance.cdist(test_data, train_data, metric='euclidean')
+    closest_neigh_idx = np.argmin(D, axis=1)
+    predicted_labels = train_labels[closest_neigh_idx]
+
+    predicted_labels = predicted_labels.reshape(-1, 1)
 
     #------------------------------------------------------------------#
     return predicted_labels
@@ -242,6 +261,15 @@ def mypca(X):
     #------------------------------------------------------------------#
     #TODO: Calculate covariance matrix of X, find eigenvalues and eigenvectors,
     # sort them, and rotate X using the eigenvectors
+
+    cov_matrix = np.cov(X, rowvar=False)
+    w, v = np.linalg.eigh(cov_matrix)
+
+    idx = np.argsort(w)[::-1] #we sort eigenvalues and eigenvectors in descending order
+    w = w[idx]
+    v = v[:, idx]
+
+    X_pca = X.dot(v)
 
     #------------------------------------------------------------------#
 

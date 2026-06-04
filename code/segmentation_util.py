@@ -18,14 +18,27 @@ def ngradient(fun, x, h=1e-3):
     # Output:
     # g - vector of partial derivatives (gradient) of fun
 
+    g = np.zeros_like(x)
+
     #------------------------------------------------------------------#
     # TODO: Implement the  computation of the partial derivatives of
     # the function at x with numerical differentiation.
     # g[k] should store the partial derivative w.r.t. the k-th parameter
-    pass
+
+    for k in range(len(x)):
+        x_p = x.copy()
+        x_m = x.copy()
+
+        # We perturb the kth element by a small amount
+        x_p[k] += h
+        x_m[k] -= h
+
+        # We use the central difference formula: [f(x+h) - f(x-h)]/(2*h)
+        g[k] = (fun(x_p)-fun(x_m))/(2*h)
+
     #------------------------------------------------------------------#
 
-    # return g
+    return g
 
 def scatter_data(X, Y, feature0=0, feature1=1, ax=None):
     # scater_data displays a scatterplot of at most 1000 samples from dataset X, and gives each point
@@ -71,6 +84,32 @@ def create_dataset(image_number, slice_number, task):
 
     return X, Y, feature_labels
 
+def extract_distance(im):
+    """
+    Calculates the normalized Euclidean distance of each pixel from the intensity-based center of mass of the image
+    """
+    rows, cols = im.shape
+    img = im.astype(float)
+
+    # we create coordinate grids
+    r_grid, c_grid = np.ogrid[:rows, :cols]
+    
+    # we compute the total intensity sum
+    total_intensity = np.sum(img)
+
+    # we calculate the intensity-weighted coordinates (Center of Mass)
+    cx = np.sum(r_grid*img)/total_intensity
+    cy = np.sum(c_grid*img)/total_intensity
+
+
+
+    # we calculate Euclidean distance from center of mas for every pixel
+    distance_im = np.sqrt((r_grid-cx)**2 + (c_grid-cy)**2)
+    
+    # we normalize between 0 and 1
+    distance_im = distance_im /distance_im.max()
+    
+    return distance_im.flatten().reshape(-1, 1)
 
 def extract_features(image_number, slice_number):
     # extracts features for [image_number]_[slice_number]_t1.tif and [image_number]_[slice_number]_t2.tif
@@ -102,7 +141,33 @@ def extract_features(image_number, slice_number):
     #------------------------------------------------------------------#
     # TODO: Extract more features and add them to X.
     # Don't forget to provide (short) descriptions for the features
-    pass
+    
+    # Small Gaussian Blurs (gamma = 1.0)
+    t1_blur_small = ndimage.gaussian_filter(t1.astype(float), sigma=1.0).flatten().reshape(-1, 1)
+    t2_blur_small = ndimage.gaussian_filter(t2.astype(float), sigma=1.0).flatten().reshape(-1, 1)
+    
+    # Larger Gaussian Blurs (gamma = 3.0)
+    t1_blur_large = ndimage.gaussian_filter(t1.astype(float), sigma=3.0).flatten().reshape(-1, 1)
+    t2_blur_large = ndimage.gaussian_filter(t2.astype(float), sigma=3.0).flatten().reshape(-1, 1)
+    
+    # Sobel Edge Filter
+    t1_sobel = ndimage.generic_gradient_magnitude(t1.astype(float), ndimage.sobel).flatten().reshape(-1, 1)
+    t2_sobel = ndimage.generic_gradient_magnitude(t2.astype(float), ndimage.sobel).flatten().reshape(-1, 1)
+
+    t1_distance = extract_distance(t1)
+    t2_distance = extract_distance(t2)
+
+    X = np.concatenate((X, t1_blur_small, t2_blur_small, t1_blur_large, t2_blur_large, t1_sobel, t2_sobel, t1_distance, t2_distance), axis=1)
+    features += (
+        'T1 Gaussian blur (sigma=1)', 
+        'T2 Gaussian blur (sigma=1)', 
+        'T1 Gaussian blur (sigma=3)', 
+        'T2 Gaussian blur (sigma=3)',
+        'T1 Sobel edge filter',
+        'T2 Sobel edge filter',
+        'T1 Center of Mass distance',
+        'T2 Center of Mass distance'
+    )
     #------------------------------------------------------------------#
     return X, features
 
@@ -176,9 +241,11 @@ def dice_overlap(true_labels, predicted_labels, smooth=1.):
 
     #------------------------------------------------------------------#
     # TODO: Implement the missing functionality for Dice overlap
-    pass
+    
+    intersection = np.sum(t*p)
+    dice = (2.*intersection+smooth) / (np.sum(t)+np.sum(p)+smooth)
     #------------------------------------------------------------------#
-    # return dice
+    return dice
 
 
 def dice_multiclass(true_labels, predicted_labels):
@@ -206,7 +273,7 @@ def dice_multiclass(true_labels, predicted_labels):
         temp_true[true_labels != all_classes[i]] = 0  #Everything else is background
 
         temp_predicted = predicted_labels.copy();
-        print(temp_predicted.dtype)
+        #print(temp_predicted.dtype)
         temp_predicted[predicted_labels == all_classes[i]] = 1
         temp_predicted[predicted_labels != all_classes[i]] = 0
         dice_score[i] = dice_overlap(temp_true.astype(int), temp_predicted.astype(int))
@@ -234,9 +301,13 @@ def classification_error(true_labels, predicted_labels):
 
     #------------------------------------------------------------------#
     # TODO: Implement the missing functionality for classification error
-    pass
+    # we compute the ratio of errors
+    errors = np.sum(t!=p)
+    total_pixels = t.size
+    err = errors / total_pixels
+
     #------------------------------------------------------------------#
-    # return err
+    return err
 
 
 
