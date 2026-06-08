@@ -305,7 +305,7 @@ def segmentation_combined_knn(train_data_matrix, train_labels_matrix, test_data,
     #Combine labels
     predicted_labels = scipy.stats.mode(predicted_labels, axis=1)[0]
 
-    return predicted_labels.astype(bool)
+    return predicted_labels.astype(int)
 
 
 def segmentation_knn(train_data, train_labels, test_data, k=1):
