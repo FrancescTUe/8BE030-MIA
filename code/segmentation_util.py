@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import segmentation as seg
 from scipy import ndimage
+from skimage.feature import local_binary_pattern
 
 
 def ngradient(fun, x, h=1e-3):
@@ -157,16 +158,22 @@ def extract_features(image_number, slice_number):
     t1_distance = extract_distance(t1)
     t2_distance = extract_distance(t2)
 
-    X = np.concatenate((X, t1_blur_small, t2_blur_small, t1_blur_large, t2_blur_large, t1_sobel, t2_sobel, t1_distance, t2_distance), axis=1)
+    # LBP texture features (P=8 neighbors, R=1 radius, uniform method)
+    lbp_t1 = local_binary_pattern(t1.astype(float), P=8, R=1, method='uniform').flatten().reshape(-1, 1)
+    lbp_t2 = local_binary_pattern(t2.astype(float), P=8, R=1, method='uniform').flatten().reshape(-1, 1)
+
+    X = np.concatenate((X, t1_blur_small, t2_blur_small, t1_blur_large, t2_blur_large, t1_sobel, t2_sobel, t1_distance, t2_distance, lbp_t1, lbp_t2), axis=1)
     features += (
-        'T1 Gaussian blur (sigma=1)', 
-        'T2 Gaussian blur (sigma=1)', 
-        'T1 Gaussian blur (sigma=3)', 
+        'T1 Gaussian blur (sigma=1)',
+        'T2 Gaussian blur (sigma=1)',
+        'T1 Gaussian blur (sigma=3)',
         'T2 Gaussian blur (sigma=3)',
         'T1 Sobel edge filter',
         'T2 Sobel edge filter',
         'T1 Center of Mass distance',
-        'T2 Center of Mass distance'
+        'T2 Center of Mass distance',
+        'T1 LBP (P=8, R=1)',
+        'T2 LBP (P=8, R=1)'
     )
     #------------------------------------------------------------------#
     return X, features
