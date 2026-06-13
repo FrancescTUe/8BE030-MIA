@@ -112,6 +112,25 @@ def extract_distance(im):
     
     return distance_im.flatten().reshape(-1, 1)
 
+def extract_t1t2_normalized_difference(t1_img, t2_img):
+    """
+    Computes the per-pixel normalized difference between T1 and T2 images.
+    Returns values in [-1, 1] that are invariant to global intensity scaling.
+
+    Input:
+        t1_img, t2_img - 2D arrays of identical shape (the registered T1 and T2 slices)
+    Output:
+        feature_vector - (N*M)x1 column vector, ready to concatenate to X
+    """
+    eps = 1e-6  # avoids divide-by-zero in fully-dark regions
+
+    t1 = t1_img.astype(np.float32)
+    t2 = t2_img.astype(np.float32)
+
+    norm_diff = (t1 - t2) / (t1 + t2 + eps)
+
+    return norm_diff.flatten().reshape(-1, 1)
+
 def extract_features(image_number, slice_number):
     # extracts features for [image_number]_[slice_number]_t1.tif and [image_number]_[slice_number]_t2.tif
     # Input:
@@ -162,7 +181,10 @@ def extract_features(image_number, slice_number):
     lbp_t1 = local_binary_pattern(t1.astype(float), P=8, R=1, method='uniform').flatten().reshape(-1, 1)
     lbp_t2 = local_binary_pattern(t2.astype(float), P=8, R=1, method='uniform').flatten().reshape(-1, 1)
 
-    X = np.concatenate((X, t1_blur_small, t2_blur_small, t1_blur_large, t2_blur_large, t1_sobel, t2_sobel, t1_distance, t2_distance, lbp_t1, lbp_t2), axis=1)
+    # Multi-modal feature
+    norm_diff = extract_t1t2_normalized_difference(t1, t2)
+    
+    X = np.concatenate((X, t1_blur_small, t2_blur_small, t1_blur_large, t2_blur_large, t1_sobel, t2_sobel, t1_distance, t2_distance, lbp_t1, lbp_t2, norm_diff), axis=1)
     features += (
         'T1 Gaussian blur (sigma=1)',
         'T2 Gaussian blur (sigma=1)',
@@ -173,7 +195,8 @@ def extract_features(image_number, slice_number):
         'T1 Center of Mass distance',
         'T2 Center of Mass distance',
         'T1 LBP (P=8, R=1)',
-        'T2 LBP (P=8, R=1)'
+        'T2 LBP (P=8, R=1)',
+        'T1-T2 normalized difference'
     )
     #------------------------------------------------------------------#
     return X, features
